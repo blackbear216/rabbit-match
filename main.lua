@@ -33,6 +33,15 @@ local function is_inside_game_table(x, y)
     and y < frame_y_pos + frame_size
 end
 
+local function is_inside_game_table_pos(x, y)
+    if x == nil then return false end
+    if y == nil then return false end
+    return x > 0
+    and x < 9
+    and y > 0
+    and y < 9
+end
+
 local function highlight_cell(x, y)
     local x = x - frame_x_pos
     local y = y - frame_y_pos
@@ -44,6 +53,12 @@ local function highlight_cell(x, y)
 end
 
 local function check_adjacent(highlight_pos, click_pos)
+    if not is_inside_game_table_pos(highlight_pos[1], highlight_pos[2]) then
+        return false
+    elseif not is_inside_game_table_pos(click_pos[1], click_pos[2]) then
+        return false
+    end
+
     --north
     local north = {click_pos[1] - 1, click_pos[2]}
     if north[1] > 0 then
@@ -96,13 +111,17 @@ local function copy_pos(pos)
     return new_pos
 end
 
+local function is_same_pos(pos1, pos2)
+    return pos1[1] == pos2[1] and pos1[2] == pos2[2]
+end
+
 function love.load()
 
 end
 
 function love.update(dt)
     local x, y = love.mouse.getPosition()
-    --local mouse_down = love.mouse.isDown(1)
+
     x = math.ceil(x / SCALE_FACTOR)
     y = math.ceil(y / SCALE_FACTOR)
     if is_inside_game_table(x, y) then
@@ -110,23 +129,6 @@ function love.update(dt)
     else
         highlight_pos = {}
     end
---[[
-    if mouse_down then
-        if click_flag then
-            local adjacent = check_adjacent(highlight_pos, click_pos)
-            if adjacent then
-                swap_tiles(highlight_pos, click_pos)
-                click_pos = {}
-                click_flag = false
-            else
-                click_pos = highlight_pos
-                click_flag = true
-            end
-        else
-            click_pos = copy_pos(highlight_pos)
-            click_flag = true
-        end
-    end ]]
 end
 
 function love.draw()
@@ -169,18 +171,22 @@ end
 
 function love.mousepressed(x, y, button)
     if click_flag then
-        for i=1, #click_pos do
-            print(click_pos[i])
-            print(highlight_pos[i])
-        end
-        local adjacent = check_adjacent(highlight_pos, click_pos)
-        if adjacent then
-            swap_tiles(highlight_pos, click_pos)
+        if not is_inside_game_table_pos(highlight_pos[1], highlight_pos[2]) then
+            click_pos = {}
+            click_flag = false
+        elseif is_same_pos(highlight_pos, click_pos) then
             click_pos = {}
             click_flag = false
         else
-            click_pos = highlight_pos
-            click_flag = true
+            local adjacent = check_adjacent(highlight_pos, click_pos)
+            if adjacent then
+                swap_tiles(highlight_pos, click_pos)
+                click_pos = {}
+                click_flag = false
+            else
+                click_pos = copy_pos(highlight_pos)
+                click_flag = true
+            end
         end
     else
         click_pos = copy_pos(highlight_pos)
