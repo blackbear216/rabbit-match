@@ -12,11 +12,13 @@ local frame_x_pos = math.ceil((WIDTH - frame_size) / 2)
 local frame_y_pos = math.ceil((HEIGHT - frame_size) / 2)
 
 local highlight_pos = {}
+local click_pos = {}
+local click_flag = false
 
 local game_table = {
     {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0},
-    {0,1,1,0,1,0,0,0},
+    {0,1,1,2,1,2,0,0},
     {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0},
@@ -41,12 +43,66 @@ local function highlight_cell(x, y)
     return {i, j}
 end
 
+local function check_adjacent(highlight_pos, click_pos)
+    --north
+    local north = {click_pos[1] - 1, click_pos[2]}
+    if north[1] > 0 then
+        if north[1] == highlight_pos[1] and north[2] == highlight_pos[2] then
+            return true
+        end
+    end
+    
+    --south
+    local south = {click_pos[1] + 1, click_pos[2]}
+    if south[1] < 9 then
+        if south[1] == highlight_pos[1] and south[2] == highlight_pos[2] then
+            return true
+        end
+    end
+    
+    --east
+    local east = {click_pos[1], click_pos[2] + 1}
+    if east[2] < 9 then
+        if east[1] == highlight_pos[1] and east[2] == highlight_pos[2] then
+            return true
+        end
+    end
+
+    --west
+    local west = {click_pos[1], click_pos[2] - 1}
+    if west[2] > 0 then
+        if west[1] == highlight_pos[1] and west[2] == highlight_pos[2] then
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function swap_tiles(highlight_pos, click_pos)
+    local hi, hj = highlight_pos[1], highlight_pos[2]
+    local ci, cj = click_pos[1], click_pos[2]
+    local placeholder = game_table[hi][hj]
+    game_table[hi][hj] = game_table[ci][cj]
+    game_table[ci][cj] = placeholder
+end
+
+local function copy_pos(pos)
+    local new_pos = {}
+    for i=1, #pos do
+        new_pos[i] = pos[i]
+    end
+
+    return new_pos
+end
+
 function love.load()
 
 end
 
 function love.update(dt)
     local x, y = love.mouse.getPosition()
+    --local mouse_down = love.mouse.isDown(1)
     x = math.ceil(x / SCALE_FACTOR)
     y = math.ceil(y / SCALE_FACTOR)
     if is_inside_game_table(x, y) then
@@ -54,6 +110,23 @@ function love.update(dt)
     else
         highlight_pos = {}
     end
+--[[
+    if mouse_down then
+        if click_flag then
+            local adjacent = check_adjacent(highlight_pos, click_pos)
+            if adjacent then
+                swap_tiles(highlight_pos, click_pos)
+                click_pos = {}
+                click_flag = false
+            else
+                click_pos = highlight_pos
+                click_flag = true
+            end
+        else
+            click_pos = copy_pos(highlight_pos)
+            click_flag = true
+        end
+    end ]]
 end
 
 function love.draw()
@@ -64,18 +137,53 @@ function love.draw()
         for j=1, #game_table[i] do
             local tile_x_pos = frame_x_pos + TILE_SIZE * (j - 1)
             local tile_y_pos = frame_y_pos + TILE_SIZE * (i - 1)
+
             local mode
             if game_table[i][j] == 0 then
                 mode = "line"
-            elseif game_table[i][j] == 1 then
+            else
                 mode = "fill"
             end
+
+            if game_table[i][j] == 1 then
+                love.graphics.setColor(0.5, 1, 0.5, 1)
+            elseif game_table[i][j] == 2 then
+                love.graphics.setColor(0.5, 0.5, 1, 1)
+            end
             love.graphics.rectangle(mode, tile_x_pos, tile_y_pos, TILE_SIZE, TILE_SIZE)
+
             if i == highlight_pos[1] and j == highlight_pos[2] then
                 love.graphics.setColor(1, 1, 1, 0.5)
                 love.graphics.rectangle("fill", tile_x_pos, tile_y_pos, TILE_SIZE, TILE_SIZE)
             end
             love.graphics.setColor(1, 1, 1, 1)
+
+            if i == click_pos[1] and j == click_pos[2] then
+                love.graphics.setColor(1, 0, 0, 0.5)
+                love.graphics.rectangle("fill", tile_x_pos, tile_y_pos, TILE_SIZE, TILE_SIZE)
+            end
+            love.graphics.setColor(1, 1, 1, 1)
         end
+    end
+end
+
+function love.mousepressed(x, y, button)
+    if click_flag then
+        for i=1, #click_pos do
+            print(click_pos[i])
+            print(highlight_pos[i])
+        end
+        local adjacent = check_adjacent(highlight_pos, click_pos)
+        if adjacent then
+            swap_tiles(highlight_pos, click_pos)
+            click_pos = {}
+            click_flag = false
+        else
+            click_pos = highlight_pos
+            click_flag = true
+        end
+    else
+        click_pos = copy_pos(highlight_pos)
+        click_flag = true
     end
 end
