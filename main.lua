@@ -15,6 +15,8 @@ local highlight_pos = {}
 local click_pos = {}
 local click_flag = false
 
+local variety = 7
+
 local game_table = {
     {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0},
@@ -128,14 +130,169 @@ end
 local function load_game_table(variety)
     for i=1, #game_table do
         for j=1, #game_table[i] do
-            game_table[i][j] = math.random(variety)
+            if game_table[i][j] == 0 then
+                game_table[i][j] = math.random(variety)
+            end
+        end
+    end
+end
+
+local function check_tile_3match(pos)
+    --[[
+        return key:
+        0 - false
+        1 - north
+        2 - south
+        3 - east
+        4 - west
+    ]]
+
+    --north
+    local north = {pos[1] - 1, pos[2]}
+    if check_adjacent(north, pos) then 
+        if game_table[pos[1]][pos[2]] == game_table[north[1]][north[2]] then
+            local north_north = {north[1] - 1, north[2]}
+            if check_adjacent(north_north, north) then
+                if game_table[north[1]][north[2]] == game_table[north_north[1]][north_north[2]] then
+                    return 1
+                end
+            end
+        end
+    end
+
+    --south
+    local south = {pos[1] + 1, pos[2]}
+    if check_adjacent(south, pos) then
+        if game_table[pos[1]][pos[2]] == game_table[south[1]][south[2]] then
+            local south_south = {south[1] + 1, south[2]}
+            if check_adjacent(south_south, south) then
+                if game_table[south[1]][south[2]] == game_table[south_south[1]][south_south[2]] then
+                    return 2
+                end
+            end
+        end
+    end
+
+    --east
+    local east = {pos[1], pos[2] + 1}
+    if check_adjacent(east, pos) then
+        if game_table[pos[1]][pos[2]] == game_table[east[1]][east[2]] then
+            local east_east = {east[1], east[2] + 1}
+            if check_adjacent(east_east, east) then
+                if game_table[east[1]][east[2]] == game_table[east_east[1]][east_east[2]] then
+                    return 3
+                end
+            end
+        end  
+    end
+        
+    --west
+    local west = {pos[1], pos[2] - 1}
+    if check_adjacent(west, pos) then
+        if game_table[pos[1]][pos[2]] == game_table[west[1]][west[2]] then
+            local west_west = {west[1], west[2] - 1}
+            if check_adjacent(west_west, west) then
+                if game_table[west[1]][west[2]] == game_table[west_west[1]][west_west[2]] then
+                    return 4
+                end
+            end
+        end
+    end  
+
+    return 0
+end
+
+local function delete_3match(pos, result)
+    local empties = {}
+    --north
+    if result == 1 then
+        for i=0, 2 do
+            game_table[pos[1] - i][pos[2]] = 0
+            empties[i+1] = {pos[1] - i, pos[2]}
+        end
+    end
+
+    --south
+    if result == 2 then
+        for i=0, 2 do
+            game_table[pos[1] + i][pos[2]] = 0
+            empties[i+1] = {pos[1] + i, pos[2]}
+        end
+    end
+
+    --east
+    if result == 3 then
+        for i=0, 2 do
+            game_table[pos[1]][pos[2] + i] = 0
+            empties[i+1] = {pos[1], pos[2] + i}
+        end
+    end
+
+    --west
+    if result == 4 then
+        for i=0, 2 do
+            game_table[pos[1]][pos[2] - i] = 0
+            empties[i+1] = {pos[1], pos[2] - i}
+        end
+    end
+
+    return empties
+end
+
+local function shift_game_table(empties)
+    local new_empties = {}
+    for i=1, #empties do
+        --check tile above empty tile
+        if is_inside_game_table_pos(empties[i][1] - 1, empties[i][2]) then
+            local below_pos = {empties[i][1], empties[i][2]}
+            local above_pos = {empties[i][1] - 1, empties[i][2]}
+            local placeholder = game_table[below_pos[1]][below_pos[2]]
+            game_table[below_pos[1]][below_pos[2]] = game_table[above_pos[1]][above_pos[2]]
+            game_table[above_pos[1]][above_pos[2]] = placeholder
+
+            new_empties[i] = {empties[i][1] - 1, empties[i][2]}
+        else
+            break
+        end
+    end
+    
+    return new_empties
+end
+
+local handle_3matches
+
+local function handle_3match_tile(pos, result)
+    local empties = delete_3match(pos, result)
+    while true do
+        local new_empties = shift_game_table(empties)
+        -- have ^ func return not a bool but an updated list of empties
+        -- then the below v loop can break if empties is empty (#empties == 0
+        if #new_empties == 0 then
+            break
+        end
+        for i=1, #new_empties do
+            empties[i] = copy_pos(new_empties[i])
+        end
+    end
+    load_game_table(variety)
+    handle_3matches()
+end
+
+function handle_3matches()
+    for i=1, #game_table do
+        for j=1, #game_table[i] do
+            local pos = {i, j}
+            local result = check_tile_3match(pos)
+            if result ~= 0 then
+                handle_3match_tile(pos, result)
+            end
         end
     end
 end
 
 function love.load()
     math.randomseed(os.time())
-    load_game_table(7)
+    load_game_table(variety)
 end
 
 function love.update(dt)
@@ -148,6 +305,7 @@ function love.update(dt)
     else
         highlight_pos = {}
     end
+    handle_3matches()
 end
 
 function love.draw()
@@ -189,26 +347,32 @@ function love.draw()
 end
 
 function love.mousepressed(x, y, button)
-    if click_flag then
-        if not is_inside_game_table_pos(highlight_pos[1], highlight_pos[2]) then
-            click_pos = {}
-            click_flag = false
-        elseif is_same_pos(highlight_pos, click_pos) then
-            click_pos = {}
-            click_flag = false
-        else
-            local adjacent = check_adjacent(highlight_pos, click_pos)
-            if adjacent then
-                swap_tiles(highlight_pos, click_pos)
+    if button == 1 then
+        if click_flag then
+            if not is_inside_game_table_pos(highlight_pos[1], highlight_pos[2]) then
+                click_pos = {}
+                click_flag = false
+            elseif is_same_pos(highlight_pos, click_pos) then
                 click_pos = {}
                 click_flag = false
             else
-                click_pos = copy_pos(highlight_pos)
-                click_flag = true
+                local adjacent = check_adjacent(highlight_pos, click_pos)
+                if adjacent then
+                    swap_tiles(highlight_pos, click_pos)
+                    click_pos = {}
+                    click_flag = false
+                else
+                    click_pos = copy_pos(highlight_pos)
+                    click_flag = true
+                end
             end
+        else
+            click_pos = copy_pos(highlight_pos)
+            click_flag = true
         end
-    else
-        click_pos = copy_pos(highlight_pos)
-        click_flag = true
+    end
+
+    if button == 2 then
+        --handle_3matches()
     end
 end
