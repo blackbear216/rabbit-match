@@ -18,12 +18,22 @@ local click_flag = false
 local game_table = {
     {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0},
-    {0,1,1,2,1,2,0,0},
+    {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0}
+}
+
+local colours = {
+    {0.5, 1, 0.5},
+    {0.5, 0.5, 1},
+    {1, 0.5, 0.5},
+    {1, 1, 0.5},
+    {1, 0.5, 1},
+    {0.5, 1, 1},
+    {0.8, 0.5, 0.2}
 }
 
 local function is_inside_game_table(x, y)
@@ -115,8 +125,17 @@ local function is_same_pos(pos1, pos2)
     return pos1[1] == pos2[1] and pos1[2] == pos2[2]
 end
 
-function love.load()
+local function load_game_table(variety)
+    for i=1, #game_table do
+        for j=1, #game_table[i] do
+            game_table[i][j] = math.random(variety)
+        end
+    end
+end
 
+function love.load()
+    math.randomseed(os.time())
+    load_game_table(7)
 end
 
 function love.update(dt)
@@ -147,11 +166,11 @@ function love.draw()
                 mode = "fill"
             end
 
-            if game_table[i][j] == 1 then
-                love.graphics.setColor(0.5, 1, 0.5, 1)
-            elseif game_table[i][j] == 2 then
-                love.graphics.setColor(0.5, 0.5, 1, 1)
-            end
+            local red = colours[game_table[i][j]][1]
+            local green = colours[game_table[i][j]][2]
+            local blue = colours[game_table[i][j]][3]
+            love.graphics.setColor(red, green, blue, 1)
+
             love.graphics.rectangle(mode, tile_x_pos, tile_y_pos, TILE_SIZE, TILE_SIZE)
 
             if i == highlight_pos[1] and j == highlight_pos[2] then
