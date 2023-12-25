@@ -151,6 +151,8 @@ local function check_tile_3match(pos)
         2 - south
         3 - east
         4 - west
+        5 - nor/sou
+        6 - eas/wes
     ]]
 
     --north
@@ -203,7 +205,33 @@ local function check_tile_3match(pos)
                 end
             end
         end
-    end  
+    end 
+    
+    --nor/sou
+    local north = {pos[1] - 1, pos[2]}
+    if check_adjacent(north, pos) then 
+        if game_table[pos[1]][pos[2]] == game_table[north[1]][north[2]] then
+            local south = {pos[1] + 1, pos[2]}
+            if check_adjacent(south, pos) then
+                if game_table[pos[1]][pos[2]] == game_table[south[1]][south[2]] then
+                    return 5
+                end
+            end
+        end
+    end
+    
+    --eas/wes
+    local east = {pos[1], pos[2] + 1}
+    if check_adjacent(east, pos) then
+        if game_table[pos[1]][pos[2]] == game_table[east[1]][east[2]] then
+            local west = {pos[1], pos[2] - 1}
+            if check_adjacent(west, pos) then
+                if game_table[pos[1]][pos[2]] == game_table[west[1]][west[2]] then
+                    return 6
+                end
+            end
+        end
+    end
 
     return 0
 end
@@ -242,6 +270,22 @@ local function delete_3match(pos, result)
         end
     end
 
+    --nor/sou
+    if result == 5 then
+        for i=-1, 1 do
+            game_table[pos[1] + i][pos[2]] = 0
+            empties[i+2] = {pos[1] + i, pos[2]}
+        end
+    end
+
+    --eas/wes
+    if result == 6 then
+        for i=-1, 1 do
+            game_table[pos[1]][pos[2] + i] = 0
+            empties[i+2] = {pos[1], pos[2] + i}
+        end
+    end
+    
     return empties
 end
 
@@ -308,6 +352,10 @@ local function leads_to_3match(highlight_pos, click_pos)
     end
 end
 
+local function move_made()
+    handle_3matches()
+end
+
 function love.load()
     math.randomseed(os.time())
     load_game_table(variety)
@@ -323,7 +371,6 @@ function love.update(dt)
     else
         highlight_pos = {}
     end
-    handle_3matches()
 end
 
 function love.draw()
@@ -380,6 +427,7 @@ function love.mousepressed(x, y, button)
                         swap_tiles(highlight_pos, click_pos)
                         click_pos = {}
                         click_flag = false
+                        move_made()
                     else
                         click_pos = copy_pos(highlight_pos)
                         click_flag = true  
