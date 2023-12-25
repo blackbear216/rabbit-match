@@ -1,3 +1,9 @@
+-- to do
+-- make 3match checks and adjustments only happen when a new move is made,
+--  not 30 frames a second
+
+-- make it so the game knows whether there are any valid moves left on the board
+
 love.graphics.setDefaultFilter("nearest")
 
 local SCALE_FACTOR = 3
@@ -290,6 +296,18 @@ function handle_3matches()
     end
 end
 
+local function leads_to_3match(highlight_pos, click_pos)
+    local click_value = game_table[click_pos[1]][click_pos[2]]
+    swap_tiles(highlight_pos, click_pos)
+    local result = check_tile_3match(highlight_pos)
+    swap_tiles(highlight_pos, click_pos)
+    if result ~= 0 then
+        return true
+    else
+        return false
+    end
+end
+
 function love.load()
     math.randomseed(os.time())
     load_game_table(variety)
@@ -358,9 +376,14 @@ function love.mousepressed(x, y, button)
             else
                 local adjacent = check_adjacent(highlight_pos, click_pos)
                 if adjacent then
-                    swap_tiles(highlight_pos, click_pos)
-                    click_pos = {}
-                    click_flag = false
+                    if leads_to_3match(highlight_pos, click_pos) then
+                        swap_tiles(highlight_pos, click_pos)
+                        click_pos = {}
+                        click_flag = false
+                    else
+                        click_pos = copy_pos(highlight_pos)
+                        click_flag = true  
+                    end 
                 else
                     click_pos = copy_pos(highlight_pos)
                     click_flag = true
