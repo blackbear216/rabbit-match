@@ -1,6 +1,4 @@
 -- to do
--- make 3match checks and adjustments only happen when a new move is made,
---  not 30 frames a second
 
 -- make it so the game knows whether there are any valid moves left on the board
 
@@ -22,6 +20,8 @@ local click_pos = {}
 local click_flag = false
 
 local variety = 7
+
+local valid_moves
 
 local game_table = {
     {0,0,0,0,0,0,0,0},
@@ -343,22 +343,74 @@ end
 local function leads_to_3match(highlight_pos, click_pos)
     local click_value = game_table[click_pos[1]][click_pos[2]]
     swap_tiles(highlight_pos, click_pos)
-    local result = check_tile_3match(highlight_pos)
+    local result1 = check_tile_3match(highlight_pos)
+    local result2 = check_tile_3match(click_pos)
     swap_tiles(highlight_pos, click_pos)
-    if result ~= 0 then
+    if result1 ~= 0 or result2 ~= 0 then
         return true
     else
         return false
     end
 end
 
+local function how_many_valid_moves()
+    local valid_moves = 0
+    for i=1, #game_table do
+        for j=1, #game_table[i] do
+            local current_pos = {i, j}
+            -- north
+            local north_pos = {i - 1, j}
+            if is_inside_game_table_pos(north_pos[1], north_pos[2]) then
+                if leads_to_3match(north_pos, current_pos) then
+                    valid_moves = valid_moves + 1
+                end
+            end
+
+            -- south
+            local south_pos = {i + 1, j}
+            if is_inside_game_table_pos(south_pos[1], south_pos[2]) then
+                if leads_to_3match(south_pos, current_pos) then
+                    valid_moves = valid_moves + 1
+                end
+            end
+
+            -- east
+            local east_pos = {i, j + 1}
+            if is_inside_game_table_pos(east_pos[1], east_pos[2]) then
+                if leads_to_3match(east_pos, current_pos) then
+                    valid_moves = valid_moves + 1
+                end
+            end
+
+            -- west
+            local west_pos = {i, j - 1}
+            if is_inside_game_table_pos(west_pos[1], west_pos[2]) then
+                if leads_to_3match(west_pos, current_pos) then
+                    valid_moves = valid_moves + 1
+                end
+            end
+        end
+    end
+    
+    return valid_moves
+end
+
+local function no_valid_moves()
+    love.graphics.print("no moves", WIDTH / SCALE_FACTOR, HEIGHT / SCALE_FACTOR, 10, 10)
+end
+
 local function move_made()
     handle_3matches()
+    valid_moves = how_many_valid_moves()
+    if valid_moves == 0 then
+        no_valid_moves()
+    end
 end
 
 function love.load()
     math.randomseed(os.time())
     load_game_table(variety)
+    move_made()
 end
 
 function love.update(dt)
@@ -409,6 +461,8 @@ function love.draw()
             love.graphics.setColor(1, 1, 1, 1)
         end
     end
+
+    love.graphics.print(valid_moves, WIDTH / SCALE_FACTOR, HEIGHT / SCALE_FACTOR)
 end
 
 function love.mousepressed(x, y, button)
