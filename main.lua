@@ -1,6 +1,32 @@
 -- to do
 
--- make it so the game knows whether there are any valid moves left on the board
+-- fix tile falling 
+-- (smth to do with the order of elements in my matches and empties tables)
+
+-- start removing old dead functions to code_graveyard.lua
+-- this will require deep tracing of where those funcs are used
+-- and more refactoring where appropriate
+
+
+
+
+-- levels
+-- you make x many matches then you ascend to next lvl with new board
+-- each lvl has a randomizer formula that gets harder each lvl
+
+-- add 4matches
+-- add 5 matches
+-- add double 3matches
+
+-- refactor that north/south/east/west business? (not sure if should)
+
+-- draw graphics for tiles
+-- have animations for when new tiles fall in
+-- have animations for whenever a match is made
+-- make sure to play out matches that fall themselves into place
+
+-- have a subtle musical tone play for each tile you hover over
+-- waving around the board leads to a pleasant sonorous experience
 
 love.graphics.setDefaultFilter("nearest")
 
@@ -22,6 +48,8 @@ local click_flag = false
 local variety = 7
 
 local valid_moves
+
+local points
 
 local game_table = {
     {0,0,0,0,0,0,0,0},
@@ -236,6 +264,214 @@ local function check_tile_3match(pos)
     return 0
 end
 
+-- takes: table pos
+-- returns: table of match tables
+-- starts w/ a fresh table
+-- initially called w/ dir -1, axis i
+-- as long as the next value is same as starting value, keep going
+-- add each pos to table as you go, incl starting pos
+-- goes up axis i in dir direction till hits diff value
+-- then flips dir and goes down
+-- after down hits a wall, take length of the table
+-- if its 3 or more we have a match
+
+-- okay but how does this model account for + shapes?
+-- do two tables one for vertical one for horizontal, return a table of tables
+-- if any failures then put an empty table into the omni table
+
+-- pass along to new function that deletes the appropriate tles
+-- also assigns points at this point
+-- atm just have longer matches (e.g. 4matches) assign extra points
+-- one could have a powerup_table overlaying the game_table
+-- e.g. on a 4match we turn the matched tile into a super explosive
+-- this could be value 2 on the powerup table at pos of our desired tile
+-- anyways..
+-- so youve deleted the tiles and assigned points
+-- now call the refiller and refill the blanks on the board
+-- and thats it, we're cooking again!!
+
+local function check_tile_matches(pos)
+    local matches = {}
+
+    local x = pos[1]
+    local y = pos[2]
+
+    local start = game_table[x][y]
+    matches[1] = {}
+
+    local i = 1
+
+    while true do
+        x = x - 1
+        if is_inside_game_table_pos(x, y) then
+            if game_table[x][y] == start then
+                matches[1][i] = {x, y}
+                i = i + 1
+            else
+                break
+            end
+        else
+            break
+        end
+    end
+
+    x = pos[1]
+
+    while true do
+        x = x + 1
+        if is_inside_game_table_pos(x, y) then
+            if game_table[x][y] == start then
+                matches[1][i] = {x, y}
+                i = i + 1
+            else
+                break
+            end
+        else
+            break
+        end
+    end
+
+    if #matches[1] >= 2 then
+        matches[1][i] = {pos[1], pos[2]}
+    else
+        matches[1] = {}
+    end
+
+    matches[2] = {}
+    i = 1
+    x = pos[1]
+
+    while true do
+        y = y - 1
+        if is_inside_game_table_pos(x, y) then
+            if game_table[x][y] == start then
+                matches[2][i] = {x, y}
+                i = i + 1
+            else
+                break
+            end
+        else
+            break
+        end
+    end
+
+    y = pos[2]
+
+    while true do
+        y = y + 1
+        if is_inside_game_table_pos(x, y) then
+            if game_table[x][y] == start then
+                matches[2][i] = {x, y}
+                i = i + 1
+            else
+                break
+            end
+        else
+            break
+        end
+    end
+
+    if #matches[2] >= 2 then
+        matches[2][i] = {pos[1], pos[2]}
+    else
+        matches[2] = {}
+    end
+
+    y = pos[2]
+
+    return matches
+end
+
+local function delete_matches(matches)
+    for i=1, #matches do
+        if #matches[i] ~= nil then
+            for j=1, #matches[i] do
+                local match = copy_pos(matches[i][j])
+                game_table[match[1]][match[2]] = 0
+            end
+        end
+    end
+end
+
+local function add_points(matches)
+    return #matches[1] + #matches[2]
+end
+
+local function convert_matches_to_empties(matches)
+    local empties = {}
+    local e = 1
+    for i=1, #matches do
+        for j=1, #matches[i] do
+            empties[e] = copy_pos(matches[i][j])
+        end
+    end
+
+    return empties
+end
+
+local function shift_game_table(empties)
+    local new_empties = {}
+    for i=1, #empties do
+        --check tile above empty tile
+        if is_inside_game_table_pos(empties[i][1] - 1, empties[i][2]) then
+            local below_pos = {empties[i][1], empties[i][2]}
+            local above_pos = {empties[i][1] - 1, empties[i][2]}
+            local placeholder = game_table[below_pos[1]][below_pos[2]]
+            game_table[below_pos[1]][below_pos[2]] = game_table[above_pos[1]][above_pos[2]]
+            game_table[above_pos[1]][above_pos[2]] = placeholder
+
+            new_empties[i] = {empties[i][1] - 1, empties[i][2]}
+        else
+            break
+        end
+    end
+    
+    return new_empties
+end
+
+local function handle_matches()
+    local match_count = 0
+    local empties = {}
+    local e = 1
+    for i=1, #game_table do
+        for j=1, #game_table[i] do
+            local pos = {i, j}
+            local matches = check_tile_matches(pos)
+
+            if #matches[1] > 0 or #matches[2] > 0 then
+                delete_matches(matches)
+                points = points + add_points(matches)
+                if #matches[1] > 0 and #matches[2] > 0 then
+                    match_count = match_count + 2
+                else
+                    match_count = match_count + 1
+                end
+            end
+
+            local additional_empties = convert_matches_to_empties(matches)
+            for k=1, #additional_empties do
+                empties[e] = copy_pos(additional_empties[k])
+            end
+        end
+    end
+
+    while true do
+        local new_empties = shift_game_table(empties)
+        -- have ^ func return not a bool but an updated list of empties
+        -- then the below v loop can break if empties is empty (#empties == 0
+        if #new_empties == 0 then
+            break
+        end
+        for i=1, #new_empties do
+            empties[i] = copy_pos(new_empties[i])
+        end
+    end
+
+    load_game_table(variety)
+
+    return match_count
+end
+
 local function delete_3match(pos, result)
     local empties = {}
     --north
@@ -287,26 +523,6 @@ local function delete_3match(pos, result)
     end
     
     return empties
-end
-
-local function shift_game_table(empties)
-    local new_empties = {}
-    for i=1, #empties do
-        --check tile above empty tile
-        if is_inside_game_table_pos(empties[i][1] - 1, empties[i][2]) then
-            local below_pos = {empties[i][1], empties[i][2]}
-            local above_pos = {empties[i][1] - 1, empties[i][2]}
-            local placeholder = game_table[below_pos[1]][below_pos[2]]
-            game_table[below_pos[1]][below_pos[2]] = game_table[above_pos[1]][above_pos[2]]
-            game_table[above_pos[1]][above_pos[2]] = placeholder
-
-            new_empties[i] = {empties[i][1] - 1, empties[i][2]}
-        else
-            break
-        end
-    end
-    
-    return new_empties
 end
 
 local handle_3matches
@@ -400,15 +616,25 @@ local function no_valid_moves()
 end
 
 local function move_made()
+    while true do
+        local matches = handle_matches()
+        if matches == 0 then
+            break
+        end
+    end
+        
+    --[[
     handle_3matches()
     valid_moves = how_many_valid_moves()
     if valid_moves == 0 then
         no_valid_moves()
     end
+    ]]
 end
 
 function love.load()
     math.randomseed(os.time())
+    points = 0
     load_game_table(variety)
     move_made()
 end
@@ -461,8 +687,6 @@ function love.draw()
             love.graphics.setColor(1, 1, 1, 1)
         end
     end
-
-    love.graphics.print(valid_moves, WIDTH / SCALE_FACTOR, HEIGHT / SCALE_FACTOR)
 end
 
 function love.mousepressed(x, y, button)
